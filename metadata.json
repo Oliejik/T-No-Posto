@@ -1,0 +1,7 @@
+{
+  "name": "Tá No Posto",
+  "description": "Collaborative fuel price tracking application allowing drivers to find and share real-time gas prices.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
