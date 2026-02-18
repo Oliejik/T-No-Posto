@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import AdminApp from './AdminApp';
 import ClientApp from './ClientApp';
@@ -12,38 +13,29 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Safety Valve: If nothing happens in 8 seconds, stop loading.
-    // This fixes the "infinite loading" on devices that block localStorage or have bad network.
+    // Timeout de segurança: se após 6 segundos nada carregar, forçamos a saída do loading
     const safetyTimeout = setTimeout(() => {
-      setLoading((prev) => {
-        if (prev) {
-          console.warn("Auth check timed out. Defaulting to login.");
-          return false;
-        }
-        return prev;
-      });
-    }, 8000);
+      setLoading(false);
+    }, 6000);
 
-    // If no config, stop loading immediately
     if (!isSupabaseConfigured) {
-      console.warn("Supabase not configured. Running in UI-only mode.");
+      console.warn("Supabase não configurado. Adicione as chaves na Vercel.");
       setLoading(false);
       clearTimeout(safetyTimeout);
       return;
     }
 
-    // 2. Auth State Listener
+    // Listener de mudança de estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         await fetchUserProfile(session.user.id);
       } else {
-        // Only force login view if we are not already there/loading
         setCurrentView('login');
         setLoading(false);
       }
     });
 
-    // 3. Initial Session Check
+    // Checagem inicial de sessão
     checkUser();
 
     return () => {
@@ -58,13 +50,12 @@ const App: React.FC = () => {
       if (error) throw error;
       
       if (session) {
-        // fetchUserProfile will handle setting loading to false
         await fetchUserProfile(session.user.id);
       } else {
         setLoading(false);
       }
     } catch (err) {
-      console.error("Auth check failed:", err);
+      console.error("Erro na checagem de auth:", err);
       setLoading(false);
     }
   };
@@ -78,18 +69,13 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
-        // Fallback to client if profile fails (e.g. network error but auth is okay)
+        console.error('Perfil não encontrado, assumindo motorista:', error);
         setCurrentView('client');
       } else if (data) {
-        if (data.role === 'admin') {
-          setCurrentView('admin');
-        } else {
-          setCurrentView('client');
-        }
+        data.role === 'admin' ? setCurrentView('admin') : setCurrentView('client');
       }
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao buscar perfil:", err);
       setCurrentView('client');
     } finally {
       setLoading(false);
@@ -97,16 +83,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    if (!isSupabaseConfigured) {
-      setCurrentView('login');
-      return;
-    }
-
     setLoading(true);
     try {
-      await supabase.auth.signOut();
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Erro ao deslogar:", error);
+    } finally {
       setCurrentView('login');
       setLoading(false);
     }
@@ -114,9 +98,10 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
-        <p className="text-gray-400 animate-pulse font-medium">Carregando...</p>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-6 text-center">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-6" />
+        <h2 className="text-xl font-bold mb-2">Tá No Posto</h2>
+        <p className="text-slate-400 font-medium animate-pulse">Iniciando aplicativo...</p>
       </div>
     );
   }
@@ -124,8 +109,8 @@ const App: React.FC = () => {
   if (currentView === 'login') {
     return (
       <LoginScreen 
-        onClientLogin={() => {}} 
-        onAdminLogin={() => {}} 
+        onClientLogin={() => setCurrentView('client')} 
+        onAdminLogin={() => setCurrentView('admin')} 
       />
     );
   }
@@ -134,7 +119,6 @@ const App: React.FC = () => {
     return <AdminApp onLogout={handleLogout} />;
   }
 
-  // Default to Client
   return <ClientApp onLogout={handleLogout} />;
 };
 

@@ -1,23 +1,48 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-// As variáveis de ambiente devem ser configuradas no seu arquivo .env
-// Exemplo:
-// REACT_APP_SUPABASE_URL=https://seuref.supabase.co
-// REACT_APP_SUPABASE_ANON_KEY=suachaveanonima
+// Função auxiliar para obter env vars de forma segura no navegador
+const getEnv = (key: string): string => {
+  try {
+    // Tenta acessar via window.process (comum em polyfills de bundlers)
+    const win = window as any;
+    if (win.process?.env?.[key]) {
+      return win.process.env[key];
+    }
+    
+    // Tenta acesso direto via process.env (Vercel/Node environment)
+    // Usamos typeof para evitar ReferenceError se 'process' não existir
+    if (typeof process !== 'undefined' && process?.env?.[key]) {
+      return process.env[key] as string;
+    }
 
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
+    // Tenta acesso via import.meta.env (Padrão Vite)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta?.env?.[key]) {
+      // @ts-ignore
+      return import.meta.env[key] as string;
+    }
+  } catch (e) {
+    console.warn(`Erro ao acessar variável ${key}:`, e);
+  }
+  return '';
+};
 
-// Check if variables are actually provided
+const SUPABASE_URL = getEnv('REACT_APP_SUPABASE_URL');
+const SUPABASE_ANON_KEY = getEnv('REACT_APP_SUPABASE_ANON_KEY');
+
+// URLs de exemplo para comparação de segurança
+const PLACEHOLDER_URL = 'https://qcijmsxwmqidnuagbjlt.supabase.co';
+
 export const isSupabaseConfigured = 
-  SUPABASE_URL !== 'https://qcijmsxwmqidnuagbjlt.supabase.co' && 
-  SUPABASE_ANON_KEY !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjaWptc3h3bXFpZG51YWdiamx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMjE1MjksImV4cCI6MjA4NTY5NzUyOX0.2Ee8XYR0tze8sgv7EYq_NrGZYbpL12grRlxFfNLNlFU' && 
-  SUPABASE_URL !== 'https://qcijmsxwmqidnuagbjlt.supabase.co';
+  !!SUPABASE_URL && 
+  SUPABASE_URL !== '' && 
+  SUPABASE_URL !== PLACEHOLDER_URL &&
+  !!SUPABASE_ANON_KEY &&
+  SUPABASE_ANON_KEY !== '';
 
-// Cria o cliente apenas se as chaves existirem para evitar erros em tempo de execução
-// Se as chaves não existirem, usamos valores placeholder que causarão erros de rede se usados,
-// por isso usamos isSupabaseConfigured para bloquear chamadas.
+// Inicializa o cliente com fallback para não quebrar a execução do script
 export const supabase = createClient(
-  SUPABASE_URL || 'https://qcijmsxwmqidnuagbjlt.supabase.co', 
-  SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjaWptc3h3bXFpZG51YWdiamx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMjE1MjksImV4cCI6MjA4NTY5NzUyOX0.2Ee8XYR0tze8sgv7EYq_NrGZYbpL12grRlxFfNLNlFU'
+  SUPABASE_URL || 'https://placeholder.supabase.co', 
+  SUPABASE_ANON_KEY || 'no-key'
 );
