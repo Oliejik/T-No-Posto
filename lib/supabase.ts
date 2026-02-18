@@ -1,48 +1,45 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Função auxiliar para obter env vars de forma segura no navegador
-const getEnv = (key: string): string => {
-  try {
-    // Tenta acessar via window.process (comum em polyfills de bundlers)
-    const win = window as any;
-    if (win.process?.env?.[key]) {
-      return win.process.env[key];
-    }
-    
-    // Tenta acesso direto via process.env (Vercel/Node environment)
-    // Usamos typeof para evitar ReferenceError se 'process' não existir
-    if (typeof process !== 'undefined' && process?.env?.[key]) {
-      return process.env[key] as string;
-    }
+/**
+ * Utilitário para buscar variáveis de ambiente de forma segura.
+ * Evita o uso direto de 'process' que pode quebrar o build em alguns ambientes.
+ */
+const getEnvVar = (key: string): string => {
+  const providers = [
+    // @ts-ignore - Vite
+    () => (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[key] : null),
+    // @ts-ignore - Webpack/CRA/Node
+    () => (typeof process !== 'undefined' && process.env ? process.env[key] : null),
+    // @ts-ignore - Browser Global
+    () => (typeof window !== 'undefined' ? (window as any).__ENV__?.[key] : null)
+  ];
 
-    // Tenta acesso via import.meta.env (Padrão Vite)
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta?.env?.[key]) {
-      // @ts-ignore
-      return import.meta.env[key] as string;
+  for (const get of providers) {
+    try {
+      const val = get();
+      if (val) return val;
+    } catch (e) {
+      // Ignora erros de referência
     }
-  } catch (e) {
-    console.warn(`Erro ao acessar variável ${key}:`, e);
   }
   return '';
 };
 
-const SUPABASE_URL = getEnv('REACT_APP_SUPABASE_URL');
-const SUPABASE_ANON_KEY = getEnv('REACT_APP_SUPABASE_ANON_KEY');
+// Tenta encontrar as chaves com diferentes prefixos comuns
+const URL = getEnvVar('VITE_SUPABASE_URL') || getEnvVar('REACT_APP_SUPABASE_URL') || getEnvVar('SUPABASE_URL');
+const KEY = getEnvVar('VITE_SUPABASE_ANON_KEY') || getEnvVar('REACT_APP_SUPABASE_ANON_KEY') || getEnvVar('SUPABASE_ANON_KEY');
 
-// URLs de exemplo para comparação de segurança
-const PLACEHOLDER_URL = 'https://qcijmsxwmqidnuagbjlt.supabase.co';
+export const ENV_DEBUG = {
+  urlFound: !!URL,
+  keyFound: !!KEY,
+  urlValue: URL ? `${URL.substring(0, 15)}...` : 'não configurada',
+};
 
-export const isSupabaseConfigured = 
-  !!SUPABASE_URL && 
-  SUPABASE_URL !== '' && 
-  SUPABASE_URL !== PLACEHOLDER_URL &&
-  !!SUPABASE_ANON_KEY &&
-  SUPABASE_ANON_KEY !== '';
+export const isSupabaseConfigured = !!URL && URL.includes('supabase.co') && !!KEY;
 
-// Inicializa o cliente com fallback para não quebrar a execução do script
+// Inicialização segura: se não houver URL, usamos um domínio falso que não trava o script
 export const supabase = createClient(
-  SUPABASE_URL || 'https://placeholder.supabase.co', 
-  SUPABASE_ANON_KEY || 'no-key'
+  URL || 'https://placeholder.supabase.co',
+  KEY || 'placeholder-key'
 );
